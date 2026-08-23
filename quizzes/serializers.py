@@ -58,3 +58,28 @@ class QuestionSerializer(serializers.ModelSerializer):
                 {"answer": "Answer must match one of the options."}
             )
         return attrs
+
+
+class QuizSerializer(serializers.ModelSerializer):
+    """Serialize quizzes including their questions."""
+
+    questions = QuestionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Quiz
+        fields = (
+            "id",
+            "title",
+            "description",
+            "created_at",
+            "updated_at",
+            "video_url",
+            "questions",
+        )
+        read_only_fields = (
+            "id",
+            "created_at",
+            "updated_at",
+            "video_url",
+            "questions",
+        )

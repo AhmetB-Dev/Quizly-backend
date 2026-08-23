@@ -24,7 +24,7 @@ class QuizListView(APIView):
 
 
 class QuizDetailView(APIView):
-    """Return a specific quiz."""
+    """Retrieve, update, or delete a specific quiz."""
 
     def get(self, request, quiz_id):
         """Return a quiz when the user may access it."""
@@ -37,6 +37,32 @@ class QuizDetailView(APIView):
 
         serializer = QuizSerializer(quiz)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, quiz_id):
+        """Partially update an owned quiz."""
+        quiz = get_quiz_by_id(quiz_id)
+
+        if quiz is None:
+            return self.not_found_response()
+        if not is_quiz_owner(request.user, quiz):
+            return self.forbidden_response()
+
+        serializer = QuizSerializer(quiz, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def delete(self, request, quiz_id):
+        """Delete an owned quiz."""
+        quiz = get_quiz_by_id(quiz_id)
+
+        if quiz is None:
+            return self.not_found_response()
+        if not is_quiz_owner(request.user, quiz):
+            return self.forbidden_response()
+
+        quiz.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def not_found_response(self):
         """Return a quiz-not-found response."""
