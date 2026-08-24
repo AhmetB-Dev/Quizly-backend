@@ -9,6 +9,7 @@ from yt_dlp.utils import DownloadError
 
 from users.functions import create_user_tokens
 
+from . import functions
 from .models import Quiz
 from .schemas import GeneratedQuestion, GeneratedQuiz
 
@@ -244,3 +245,118 @@ class QuizApiTests(APITestCase):
             response.status_code,
             status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+class QuizFunctionTests(APITestCase):
+    """Test quiz helper and generation functions."""
+
+    def create_generated_question(self, index):
+        """Create valid generated question data."""
+        return GeneratedQuestion(
+            question_title=f"Question {index}",
+            question_options=["A", "B", "C", "D"],
+            answer="A",
+        )
+
+    def create_generated_quiz(self):
+        """Create valid generated quiz data."""
+        questions = [
+            self.create_generated_question(index)
+            for index in range(1, 11)
+        ]
+        return GeneratedQuiz(
+            title="Generated Quiz",
+            description="Generated description",
+            questions=questions,
+        )
+
+    def test_build_quiz_prompt(self):
+        """Insert transcript content into the Gemini prompt."""
+        prompt = functions.build_quiz_prompt("Python transcript")
+        self.assertIn("Python transcript", prompt)
+        self.assertIn("exactly 10 meaningful questions", prompt)
+
+    @patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"})
+    @patch("quizzes.functions.genai.Client")
+    def test_get_gemini_client(self, mock_client):
+        """Create Gemini client with configured API key."""
+        functions.get_gemini_client()
+        mock_client.assert_called_once_with(api_key="test-key")
+
+    def test_get_generation_config(self):
+        """Create structured Gemini generation configuration."""
+        config = functions.get_generation_config()
+        self.assertEqual(config.response_mime_type, "application/json")
+        self.assertTrue(config.automatic_function_calling.disable)
+
+    def test_missing_quiz_returns_not_found(self):
+        """Return not found when a quiz does not exist."""
+        user = User.objects.create_user(
+            username="helperuser",
+            email="helper@example.com",
+            password="Test1234",
+        )
+        quiz, error = functions.get_quiz_for_request(user, 999999)
+        self.assertIsNone(quiz)
+        self.assertEqual(error, "not_found")
+
+    def test_get_audio_options(self):
+        """Create yt-dlp audio extraction options."""
+        options = functions.get_audio_options("audio.%(ext)s")
+        processor = options["postprocessors"][0]
+        self.assertEqual(options["format"], "bestaudio/best")
+        self.assertEqual(options["outtmpl"], "audio.%(ext)s")
+        self.assertEqual(processor["preferredcodec"], "mp3")
+
+    @patch("quizzes.functions.yt_dlp.YoutubeDL")
+    def test_download_youtube_audio(self, mock_youtube_dl):
+        """Download audio with yt-dlp without network access."""
+        downloader = mock_youtube_dl.return_value.__enter__.return_value
+        path = functions.download_youtube_audio(
+            "https://youtube.com/watch?v=test",
+            "temp",
+        )
+        downloader.download.assert_called_once()
+        self.assertTrue(path.endswith("audio.mp3"))
+
+    @patch("quizzes.functions.whisper.load_model")
+    def test_transcribe_audio(self, mock_load_model):
+        """Transcribe audio using the configured Whisper model."""
+        model = mock_load_model.return_value
+        model.transcribe.return_value = {"text": "  Hello World  "}
+        transcript = functions.transcribe_audio("audio.mp3")
+        mock_load_model.assert_called_once_with("tiny")
+        model.transcribe.assert_called_once_with("audio.mp3")
+        self.assertEqual(transcript, "Hello World")
+
+    @patch("quizzes.functions.transcribe_audio", return_value="Transcript")
+    @patch("quizzes.functions.download_youtube_audio", return_value="audio.mp3")
+    def test_create_transcript_from_youtube(self, mock_download, mock_transcribe):
+        """Create transcript from mocked YouTube audio."""
+        result = functions.create_transcript_from_youtube("youtube-url")
+        self.assertEqual(result, "Transcript")
+        mock_download.assert_called_once()
+        mock_transcribe.assert_called_once_with("audio.mp3")
+
+    @patch("quizzes.functions.get_gemini_client")
+    def test_generate_quiz_from_transcript(self, mock_client):
+        """Parse structured quiz data returned by Gemini."""
+        generated = self.create_generated_quiz()
+        response = mock_client.return_value.models.generate_content.return_value
+        response.text = generated.model_dump_json()
+        result = functions.generate_quiz_from_transcript("Transcript")
+        self.assertEqual(result.title, "Generated Quiz")
+        self.assertEqual(len(result.questions), 10)
+
+    @patch("quizzes.functions.generate_quiz_from_transcript")
+    @patch(
+        "quizzes.functions.create_transcript_from_youtube",
+        return_value="Transcript",
+    )
+    def test_generate_quiz_from_youtube(self, mock_transcript, mock_generate):
+        """Generate quiz data from a mocked YouTube transcript."""
+        expected = self.create_generated_quiz()
+        mock_generate.return_value = expected
+        result = functions.generate_quiz_from_youtube("youtube-url")
+        self.assertEqual(result, expected)
+        mock_generate.assert_called_once_with("Transcript")
