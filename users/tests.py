@@ -131,3 +131,77 @@ class RegisterTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("confirmed_password", response.data)
+
+
+class TokenTests(APITestCase):
+    """Test token refresh and logout endpoints."""
+
+    def setUp(self):
+        """Create and log in a test user."""
+        self.password = "Test1234"
+        User.objects.create_user(
+            username="testuser",
+            email="test@example.com",
+            password=self.password,
+        )
+        self.login()
+
+    def login(self):
+        """Log in and store authentication cookies."""
+        return self.client.post(
+            reverse("login"),
+            {
+                "username": "testuser",
+                "password": self.password,
+            },
+            format="json",
+        )
+
+    def test_refresh_token_successfully(self):
+        """Create a new access token from refresh cookie."""
+        response = self.client.post(reverse("token-refresh"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["detail"], "Token refreshed")
+        self.assertIn("access_token", response.cookies)
+
+    def test_refresh_without_token_is_rejected(self):
+        """Reject refresh requests without a refresh token."""
+        self.client.cookies.pop("refresh_token", None)
+        response = self.client.post(reverse("token-refresh"))
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_refresh_with_invalid_token_is_rejected(self):
+        """Reject an invalid refresh token."""
+        self.client.cookies["refresh_token"] = "invalid-token"
+        response = self.client.post(reverse("token-refresh"))
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_logout_successfully(self):
+        """Blacklist refresh token and delete auth cookies."""
+        response = self.client.post(reverse("logout"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.cookies["access_token"].value, "")
+        self.assertEqual(response.cookies["refresh_token"].value, "")
+
+    def test_logged_out_refresh_token_is_invalid(self):
+        """Reject a refresh token after logout."""
+        refresh_token = self.client.cookies["refresh_token"].value
+        self.client.post(reverse("logout"))
+        self.client.cookies["refresh_token"] = refresh_token
+
+        response = self.client.post(reverse("token-refresh"))
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )

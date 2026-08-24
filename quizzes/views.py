@@ -6,11 +6,9 @@ from rest_framework.views import APIView
 from yt_dlp.utils import DownloadError
 
 from .functions import (
-    generate_quiz_from_youtube,
-    get_quiz_by_id,
+    generate_and_save_quiz,
+    get_quiz_for_request,
     get_user_quizzes,
-    is_quiz_owner,
-    save_generated_quiz,
 )
 from .serializers import QuizCreateSerializer, QuizSerializer
 
@@ -22,33 +20,24 @@ class QuizListView(APIView):
         """Return all quizzes of the current user."""
         quizzes = get_user_quizzes(request.user)
         serializer = QuizSerializer(quizzes, many=True)
-        return Response(
-            serializer.data,
-            status=status.HTTP_200_OK,
-        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
         """Generate and save a quiz from a YouTube URL."""
         serializer = QuizCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         video_url = serializer.validated_data["url"]
-
         try:
-            generated_quiz = generate_quiz_from_youtube(video_url)
+            quiz = generate_and_save_quiz(request.user, video_url)
         except (DownloadError, genai_errors.APIError, ValidationError):
-            return Response(
-                {"detail": "Quiz generation failed."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            return self.generation_error_response()
+        return Response(QuizSerializer(quiz).data, status=status.HTTP_201_CREATED)
 
-        quiz = save_generated_quiz(
-            request.user,
-            video_url,
-            generated_quiz,
-        )
+    def generation_error_response(self):
+        """Return a failed quiz generation response."""
         return Response(
-            QuizSerializer(quiz).data,
-            status=status.HTTP_201_CREATED,
+            {"detail": "Quiz generation failed."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
 
@@ -57,25 +46,21 @@ class QuizDetailView(APIView):
 
     def get(self, request, quiz_id):
         """Return a quiz when the user may access it."""
-        quiz = get_quiz_by_id(quiz_id)
-
-        if quiz is None:
+        quiz, error = get_quiz_for_request(request.user, quiz_id)
+        if error == "not_found":
             return self.not_found_response()
-        if not is_quiz_owner(request.user, quiz):
+        if error == "forbidden":
             return self.forbidden_response()
-
         serializer = QuizSerializer(quiz)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, quiz_id):
         """Partially update an owned quiz."""
-        quiz = get_quiz_by_id(quiz_id)
-
-        if quiz is None:
+        quiz, error = get_quiz_for_request(request.user, quiz_id)
+        if error == "not_found":
             return self.not_found_response()
-        if not is_quiz_owner(request.user, quiz):
+        if error == "forbidden":
             return self.forbidden_response()
-
         serializer = QuizSerializer(quiz, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -83,13 +68,11 @@ class QuizDetailView(APIView):
 
     def delete(self, request, quiz_id):
         """Delete an owned quiz."""
-        quiz = get_quiz_by_id(quiz_id)
-
-        if quiz is None:
+        quiz, error = get_quiz_for_request(request.user, quiz_id)
+        if error == "not_found":
             return self.not_found_response()
-        if not is_quiz_owner(request.user, quiz):
+        if error == "forbidden":
             return self.forbidden_response()
-
         quiz.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

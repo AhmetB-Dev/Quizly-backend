@@ -101,15 +101,3 @@ class QuizSerializer(serializers.ModelSerializer):
             "video_url",
             "questions",
         )
-
-    def get_youtube_video_id(self, parsed):
-        """Extract a video ID from a YouTube URL."""
-        path_parts = parsed.path.strip("/").split("/")
-
-        if parsed.path == "/watch":
-            return parse_qs(parsed.query).get("v", [None])[0]
-
-        if path_parts[0] in {"shorts", "embed"} and len(path_parts) > 1:
-            return path_parts[1]
-
-        return None

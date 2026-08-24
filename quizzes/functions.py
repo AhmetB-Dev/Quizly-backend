@@ -1,8 +1,9 @@
 import os
 import tempfile
-from django.db import transaction
+
 import whisper
 import yt_dlp
+from django.db import transaction
 from google import genai
 from google.genai import types
 
@@ -34,6 +35,15 @@ def get_gemini_client():
     return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 
+def get_generation_config():
+    """Return Gemini configuration for structured quiz output."""
+    return types.GenerateContentConfig(
+        response_mime_type="application/json",
+        response_json_schema=GeneratedQuiz.model_json_schema(),
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
+
+
 def get_user_quizzes(user):
     """Return all quizzes belonging to a user."""
     return (
@@ -56,6 +66,16 @@ def is_quiz_owner(user, quiz):
     return quiz.user_id == user.id
 
 
+def get_quiz_for_request(user, quiz_id):
+    """Return a quiz and its access error for a request."""
+    quiz = get_quiz_by_id(quiz_id)
+    if quiz is None:
+        return None, "not_found"
+    if not is_quiz_owner(user, quiz):
+        return quiz, "forbidden"
+    return quiz, None
+
+
 def get_audio_options(output_path):
     """Return yt-dlp options for audio extraction."""
     return {
@@ -74,10 +94,8 @@ def download_youtube_audio(video_url, directory):
     """Download YouTube audio as an MP3 file."""
     output_path = os.path.join(directory, "audio.%(ext)s")
     options = get_audio_options(output_path)
-
     with yt_dlp.YoutubeDL(options) as downloader:
         downloader.download([video_url])
-
     return os.path.join(directory, "audio.mp3")
 
 
@@ -101,13 +119,7 @@ def generate_quiz_from_transcript(transcript):
     response = client.models.generate_content(
         model="gemini-3.6-flash",
         contents=build_quiz_prompt(transcript),
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_json_schema=GeneratedQuiz.model_json_schema(),
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                disable=True
-            ),
-        ),
+        config=get_generation_config(),
     )
     return GeneratedQuiz.model_validate_json(response.text)
 
@@ -144,3 +156,13 @@ def save_generated_quiz(user, video_url, generated_quiz):
     questions = build_questions(quiz, generated_quiz.questions)
     Question.objects.bulk_create(questions)
     return quiz
+
+
+def generate_and_save_quiz(user, video_url):
+    """Generate and save a quiz for a user."""
+    generated_quiz = generate_quiz_from_youtube(video_url)
+    return save_generated_quiz(
+        user,
+        video_url,
+        generated_quiz,
+    )
