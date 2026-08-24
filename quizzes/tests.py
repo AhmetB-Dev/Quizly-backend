@@ -1,12 +1,17 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from google.genai import errors as genai_errors
+from pydantic import ValidationError
 from rest_framework import status
 from rest_framework.test import APITestCase
+from yt_dlp.utils import DownloadError
 
 from users.functions import create_user_tokens
 
-from .models import Question, Quiz
-
+from .models import Quiz
+from .schemas import GeneratedQuestion, GeneratedQuiz
 
 User = get_user_model()
 
@@ -49,6 +54,22 @@ class QuizApiTests(APITestCase):
         return reverse(
             "quiz-detail",
             kwargs={"quiz_id": quiz.id},
+        )
+
+    def create_generated_quiz(self):
+        """Create mocked Gemini quiz data."""
+        questions = [
+            GeneratedQuestion(
+                question_title=f"Question {index}",
+                question_options=["A", "B", "C", "D"],
+                answer="A",
+            )
+            for index in range(1, 11)
+        ]
+        return GeneratedQuiz(
+            title="Generated Quiz",
+            description="Generated description",
+            questions=questions,
         )
 
     def test_get_own_quizzes(self):
@@ -105,3 +126,150 @@ class QuizApiTests(APITestCase):
         response = self.client.delete(self.detail_url(self.other_quiz))
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @patch("quizzes.views.generate_quiz_from_youtube")
+    def test_generation_error_returns_500(self, mock_generate):
+        """Return 500 when quiz generation fails."""
+        mock_generate.side_effect = genai_errors.ServerError(
+            503,
+            {"error": {"message": "Service unavailable"}},
+            None,
+        )
+
+        response = self.client.post(
+            reverse("quiz-list"),
+            {"url": "https://www.youtube.com/watch?v=test"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    @patch("quizzes.views.generate_quiz_from_youtube")
+    def test_create_quiz_successfully(self, mock_generate):
+        """Create and store a generated quiz."""
+
+        mock_generate.return_value = self.create_generated_quiz()
+
+        response = self.client.post(
+            reverse("quiz-list"),
+            {"url": "https://www.youtube.com/watch?v=test"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        created_quiz = Quiz.objects.get(id=response.data["id"])
+        self.assertEqual(created_quiz.user, self.user)
+        self.assertEqual(created_quiz.questions.count(), 10)
+
+    @patch("quizzes.views.generate_quiz_from_youtube")
+    def test_reject_non_youtube_url(self, mock_generate):
+        """Reject URLs from unsupported websites."""
+        response = self.client.post(
+            reverse("quiz-list"),
+            {"url": "https://example.com/video"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        mock_generate.assert_not_called()
+
+    def test_create_quiz_requires_authentication(self):
+        """Require authentication for quiz creation."""
+        self.client.cookies.clear()
+        response = self.client.post(
+            reverse("quiz-list"),
+            {"url": "https://www.youtube.com/watch?v=test"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    @patch("quizzes.views.generate_quiz_from_youtube")
+    def test_generation_error_returns_500(self, mock_generate):
+        """Return 500 when quiz generation fails."""
+        mock_generate.side_effect = genai_errors.ServerError(
+            503,
+            {"error": {"message": "Service unavailable"}},
+            None,
+        )
+
+        response = self.client.post(
+            reverse("quiz-list"),
+            {"url": "https://www.youtube.com/watch?v=test"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    @patch("quizzes.views.generate_quiz_from_youtube")
+    def test_short_youtube_url_is_normalized(self, mock_generate):
+        """Normalize shortened YouTube URLs."""
+        mock_generate.return_value = self.create_generated_quiz()
+        response = self.client.post(
+            reverse("quiz-list"),
+            {"url": "https://youtu.be/xQMigZK5gAY"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data["video_url"],
+            "https://www.youtube.com/watch?v=xQMigZK5gAY",
+        )
+
+    @patch("quizzes.views.generate_quiz_from_youtube")
+    def test_youtube_shorts_url_is_normalized(self, mock_generate):
+        """Normalize YouTube Shorts URLs."""
+        mock_generate.return_value = self.create_generated_quiz()
+        response = self.client.post(
+            reverse("quiz-list"),
+            {"url": "https://www.youtube.com/shorts/xQMigZK5gAY"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data["video_url"],
+            "https://www.youtube.com/watch?v=xQMigZK5gAY",
+        )
+
+    @patch("quizzes.views.generate_quiz_from_youtube")
+    def test_youtube_embed_url_is_normalized(self, mock_generate):
+        """Normalize YouTube embed URLs."""
+        mock_generate.return_value = self.create_generated_quiz()
+        response = self.client.post(
+            reverse("quiz-list"),
+            {"url": "https://www.youtube.com/embed/xQMigZK5gAY"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data["video_url"],
+            "https://www.youtube.com/watch?v=xQMigZK5gAY",
+        )
+
+    @patch("quizzes.views.generate_quiz_from_youtube")
+    def test_youtube_download_error_returns_500(self, mock_generate):
+        """Return 500 when the YouTube download fails."""
+        mock_generate.side_effect = DownloadError("Download failed")
+
+        response = self.client.post(
+            reverse("quiz-list"),
+            {"url": "https://www.youtube.com/watch?v=test"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

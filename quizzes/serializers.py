@@ -1,4 +1,4 @@
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from rest_framework import serializers
 
@@ -11,16 +11,37 @@ class QuizCreateSerializer(serializers.Serializer):
     url = serializers.URLField()
 
     def validate_url(self, value):
-        """Allow only YouTube URLs."""
-        hostname = urlparse(value).hostname or ""
-        is_youtube = (
-            hostname == "youtu.be"
-            or hostname == "youtube.com"
-            or hostname.endswith(".youtube.com")
-        )
-        if not is_youtube:
-            raise serializers.ValidationError("Only YouTube URLs are allowed.")
-        return value
+        """Validate and normalize a YouTube URL."""
+        parsed = urlparse(value)
+        hostname = (parsed.hostname or "").lower()
+        video_id = self.get_video_id(parsed, hostname)
+
+        if not video_id:
+            raise serializers.ValidationError("A valid YouTube URL is required.")
+
+        return f"https://www.youtube.com/watch?v={video_id}"
+
+    def get_video_id(self, parsed, hostname):
+        """Extract the video ID from a YouTube URL."""
+        path_parts = [part for part in parsed.path.split("/") if part]
+
+        if hostname == "youtu.be":
+            return path_parts[0] if path_parts else None
+
+        if hostname not in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+            return None
+
+        return self.get_youtube_path_id(parsed, path_parts)
+
+    def get_youtube_path_id(self, parsed, path_parts):
+        """Extract an ID from standard YouTube URL formats."""
+        if parsed.path == "/watch":
+            return parse_qs(parsed.query).get("v", [None])[0]
+
+        if len(path_parts) >= 2 and path_parts[0] in {"shorts", "embed"}:
+            return path_parts[1]
+
+        return None
 
 
 class QuestionSerializer(serializers.ModelSerializer):
@@ -80,3 +101,15 @@ class QuizSerializer(serializers.ModelSerializer):
             "video_url",
             "questions",
         )
+
+    def get_youtube_video_id(self, parsed):
+        """Extract a video ID from a YouTube URL."""
+        path_parts = parsed.path.strip("/").split("/")
+
+        if parsed.path == "/watch":
+            return parse_qs(parsed.query).get("v", [None])[0]
+
+        if path_parts[0] in {"shorts", "embed"} and len(path_parts) > 1:
+            return path_parts[1]
+
+        return None

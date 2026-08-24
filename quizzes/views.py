@@ -1,6 +1,9 @@
+from google.genai import errors as genai_errors
+from pydantic import ValidationError
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from yt_dlp.utils import DownloadError
 
 from .functions import (
     generate_quiz_from_youtube,
@@ -26,18 +29,25 @@ class QuizListView(APIView):
 
     def post(self, request):
         """Generate and save a quiz from a YouTube URL."""
-        input_serializer = QuizCreateSerializer(data=request.data)
-        input_serializer.is_valid(raise_exception=True)
-        video_url = input_serializer.validated_data["url"]
-        generated_quiz = generate_quiz_from_youtube(video_url)
+        serializer = QuizCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        video_url = serializer.validated_data["url"]
+
+        try:
+            generated_quiz = generate_quiz_from_youtube(video_url)
+        except (DownloadError, genai_errors.APIError, ValidationError):
+            return Response(
+                {"detail": "Quiz generation failed."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
         quiz = save_generated_quiz(
             request.user,
             video_url,
             generated_quiz,
         )
-        output_serializer = QuizSerializer(quiz)
         return Response(
-            output_serializer.data,
+            QuizSerializer(quiz).data,
             status=status.HTTP_201_CREATED,
         )
 
