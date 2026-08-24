@@ -1,29 +1,26 @@
+from urllib.parse import urlparse
+
 from rest_framework import serializers
 
 from .models import Question, Quiz
 
 
-class QuestionSerializer(serializers.ModelSerializer):
-    """Serialize quiz questions."""
+class QuizCreateSerializer(serializers.Serializer):
+    """Validate input for quiz generation."""
 
-    class Meta:
-        model = Question
-        fields = (
-            "id",
-            "question_title",
-            "question_options",
-            "answer",
-            "created_at",
-            "updated_at",
+    url = serializers.URLField()
+
+    def validate_url(self, value):
+        """Allow only YouTube URLs."""
+        hostname = urlparse(value).hostname or ""
+        is_youtube = (
+            hostname == "youtu.be"
+            or hostname == "youtube.com"
+            or hostname.endswith(".youtube.com")
         )
-
-    def validate_question_options(self, options):
-        """Ensure every question has four answer options."""
-        if len(options) != 4:
-            raise serializers.ValidationError(
-                "Exactly four answer options are required."
-            )
-        return options
+        if not is_youtube:
+            raise serializers.ValidationError("Only YouTube URLs are allowed.")
+        return value
 
 
 class QuestionSerializer(serializers.ModelSerializer):

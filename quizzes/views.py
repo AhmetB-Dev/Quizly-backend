@@ -3,15 +3,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .functions import (
+    generate_quiz_from_youtube,
     get_quiz_by_id,
     get_user_quizzes,
     is_quiz_owner,
+    save_generated_quiz,
 )
-from .serializers import QuizSerializer
+from .serializers import QuizCreateSerializer, QuizSerializer
 
 
 class QuizListView(APIView):
-    """Return quizzes belonging to the authenticated user."""
+    """List and create quizzes for the authenticated user."""
 
     def get(self, request):
         """Return all quizzes of the current user."""
@@ -20,6 +22,23 @@ class QuizListView(APIView):
         return Response(
             serializer.data,
             status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        """Generate and save a quiz from a YouTube URL."""
+        input_serializer = QuizCreateSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        video_url = input_serializer.validated_data["url"]
+        generated_quiz = generate_quiz_from_youtube(video_url)
+        quiz = save_generated_quiz(
+            request.user,
+            video_url,
+            generated_quiz,
+        )
+        output_serializer = QuizSerializer(quiz)
+        return Response(
+            output_serializer.data,
+            status=status.HTTP_201_CREATED,
         )
 
 
