@@ -1,6 +1,10 @@
+from datetime import datetime, timezone
+
 from django.conf import settings
 from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
+
+from .models import BlacklistedAccessToken
 
 
 def get_cookie_options():
@@ -77,3 +81,23 @@ def delete_auth_cookies(response):
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/")
     return response
+
+
+def blacklist_access_token(access_token):
+    """Blacklist a valid access token."""
+    if not access_token:
+        return
+    try:
+        token = AccessToken(access_token)
+    except TokenError:
+        return
+    expires_at = datetime.fromtimestamp(token["exp"], tz=timezone.utc)
+    BlacklistedAccessToken.objects.get_or_create(
+        jti=token["jti"],
+        defaults={"expires_at": expires_at},
+    )
+
+
+def is_access_token_blacklisted(token):
+    """Check whether an access token was revoked."""
+    return BlacklistedAccessToken.objects.filter(jti=token["jti"]).exists()

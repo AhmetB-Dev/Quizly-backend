@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .functions import (
+    blacklist_access_token,
     blacklist_refresh_token,
     create_user_tokens,
     delete_auth_cookies,
@@ -38,12 +39,14 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        """Authenticate user and set JWT cookies."""
+        """Authenticate a user and set JWT cookies."""
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
+
         if user is None:
             return self.invalid_credentials_response()
+
         tokens = create_user_tokens(user)
         response = self.create_response(user)
         return set_auth_cookies(response, tokens)
@@ -100,12 +103,14 @@ class LogoutView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        """Blacklist refresh token and delete cookies."""
+        """Blacklist tokens and delete authentication cookies."""
         refresh_token = request.COOKIES.get("refresh_token")
+        access_token = request.COOKIES.get("access_token")
 
         if not blacklist_refresh_token(refresh_token):
             return self.invalid_token_response()
 
+        blacklist_access_token(access_token)
         response = self.success_response()
         return delete_auth_cookies(response)
 

@@ -186,7 +186,7 @@ class TokenTests(APITestCase):
         )
 
     def test_logout_successfully(self):
-        """Blacklist refresh token and delete auth cookies."""
+        """Blacklist tokens and delete auth cookies."""
         response = self.client.post(reverse("logout"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -200,6 +200,19 @@ class TokenTests(APITestCase):
         self.client.cookies["refresh_token"] = refresh_token
 
         response = self.client.post(reverse("token-refresh"))
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_logged_out_access_token_is_invalid(self):
+        """Reject an access token after logout."""
+        access_token = self.client.cookies["access_token"].value
+        self.client.post(reverse("logout"))
+        self.client.cookies["access_token"] = access_token
+
+        response = self.client.get(reverse("quiz-list"))
 
         self.assertEqual(
             response.status_code,
