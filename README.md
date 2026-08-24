@@ -118,7 +118,7 @@ The frontend and backend run separately and communicate through the REST API.
 - JSON Web Tokens
 - SimpleJWT
 - HttpOnly Cookies
-- Refresh Token Blacklisting
+- Access and Refresh Token Blacklisting
 
 ### Quiz Generation
 
@@ -148,6 +148,7 @@ The frontend and backend run separately and communicate through the REST API.
 - Token refresh
 - Logout
 - Refresh token blacklisting
+- Access token blacklisting
 - Protected API endpoints
 
 ### Quiz Management
@@ -321,7 +322,8 @@ On logout:
 
 - Authentication cookies are removed
 - The refresh token is blacklisted
-- The blacklisted refresh token can no longer be used
+- The access token is added to the access-token blacklist
+- Previously issued access and refresh tokens can no longer be used
 
 ---
 
@@ -353,7 +355,7 @@ Authenticates the user and creates access and refresh tokens.
 POST /api/logout/
 ```
 
-Deletes authentication cookies and blacklists the refresh token.
+Deletes authentication cookies and invalidates both the access and refresh tokens.
 
 Authentication required.
 
@@ -529,6 +531,7 @@ The backend currently includes automated tests covering:
 - Missing refresh tokens
 - Logout
 - Refresh token blacklisting
+- Access token blacklisting
 - Quiz creation
 - Quiz retrieval
 - Quiz ownership
@@ -543,7 +546,7 @@ The backend currently includes automated tests covering:
 The current test suite contains:
 
 ```text
-29 automated tests
+30 automated tests
 ```
 
 ---
@@ -652,6 +655,7 @@ The backend includes several security measures:
 - JWT-based authentication
 - HttpOnly cookies
 - Refresh token blacklisting
+- Access token blacklisting
 - Environment variables for secrets
 - User-based quiz ownership
 - Protected API endpoints
