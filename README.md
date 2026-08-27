@@ -2,9 +2,7 @@
 
 Quizly is a Django REST API that allows authenticated users to generate quizzes from YouTube videos.
 
-This repository contains my backend implementation for the Quizly project.
-
-The frontend was provided by the Developer Akademie as part of the Backend course and was not developed by me.
+This repository contains my backend implementation for the Quizly project. The frontend was provided by the **Developer Akademie** as part of the Backend course and was not developed by me.
 
 Frontend repository:
 
@@ -28,6 +26,12 @@ Activate it on Windows:
 
 ```bash
 .venv\Scripts\activate
+```
+
+Activate it on Linux or macOS:
+
+```bash
+source .venv/bin/activate
 ```
 
 ### 2. Install dependencies
@@ -92,15 +96,15 @@ python manage.py test
 
 ## Frontend
 
-The frontend for Quizly was provided by the Developer Akademie Backend course.
+The Quizly frontend was provided by the **Developer Akademie** as part of the Backend course.
 
-It is not part of my own frontend implementation. My work in this project focuses on the Django backend, REST API, authentication, quiz generation pipeline, database integration and communication with the provided frontend.
+It is maintained separately from this backend repository and communicates with the backend through the REST API.
 
 Frontend repository:
 
 [Developer Akademie – project.Quizly](https://github.com/Developer-Akademie-Backendkurs/project.Quizly)
 
-The frontend and backend run separately and communicate through the REST API.
+This repository focuses on the backend implementation and its integration with the provided frontend.
 
 ---
 
@@ -108,31 +112,31 @@ The frontend and backend run separately and communicate through the REST API.
 
 ### Backend
 
-- Python 3.11
-- Django 5.2
-- Django REST Framework
-- SQLite
+* Python 3.11
+* Django 5.2
+* Django REST Framework
+* SQLite
 
 ### Authentication
 
-- JSON Web Tokens
-- SimpleJWT
-- HttpOnly Cookies
-- Access and Refresh Token Blacklisting
+* JSON Web Tokens
+* SimpleJWT
+* HttpOnly Cookies
+* Access and Refresh Token Blacklisting
 
 ### Quiz Generation
 
-- yt-dlp
-- FFmpeg
-- OpenAI Whisper
-- Google Gemini Flash
-- Pydantic
+* yt-dlp
+* FFmpeg
+* OpenAI Whisper
+* Google Gemini Flash
+* Pydantic
 
 ### Additional Packages
 
-- django-cors-headers
-- python-dotenv
-- google-genai
+* django-cors-headers
+* python-dotenv
+* google-genai
 
 ---
 
@@ -140,28 +144,28 @@ The frontend and backend run separately and communicate through the REST API.
 
 ### Authentication
 
-- User registration
-- User login
-- JWT access token
-- JWT refresh token
-- HttpOnly authentication cookies
-- Token refresh
-- Logout
-- Refresh token blacklisting
-- Access token blacklisting
-- Protected API endpoints
+* User registration
+* User login
+* JWT access token
+* JWT refresh token
+* HttpOnly authentication cookies
+* Token refresh
+* Logout
+* Refresh token blacklisting
+* Access token blacklisting
+* Protected API endpoints
 
 ### Quiz Management
 
 Authenticated users can:
 
-- Create quizzes from YouTube videos
-- View their quizzes
-- View individual quizzes
-- Update quiz titles
-- Update quiz descriptions
-- Delete quizzes
-- Access only their own quizzes
+* Create quizzes from YouTube videos
+* View their quizzes
+* View individual quizzes
+* Update quiz titles
+* Update quiz descriptions
+* Delete quizzes
+* Access only their own quizzes
 
 ### AI Quiz Generation
 
@@ -178,11 +182,11 @@ Quizly automatically:
 
 Every generated quiz contains:
 
-- A title
-- A description
-- Exactly 10 questions
-- Exactly 4 answer options per question
-- Exactly one correct answer per question
+* A title
+* A description
+* Exactly 10 questions
+* Exactly 4 answer options per question
+* Exactly one correct answer per question
 
 ---
 
@@ -320,10 +324,10 @@ The refresh token can be used to generate a new access token.
 
 On logout:
 
-- Authentication cookies are removed
-- The refresh token is blacklisted
-- The access token is added to the access-token blacklist
-- Previously issued access and refresh tokens can no longer be used
+* Authentication cookies are removed
+* The refresh token is blacklisted
+* The access token is added to the access-token blacklist
+* Previously issued access and refresh tokens can no longer be used
 
 ---
 
@@ -480,9 +484,9 @@ python manage.py createsuperuser
 
 The admin panel supports management of:
 
-- Users
-- Quizzes
-- Individual questions
+* Users
+* Quizzes
+* Individual questions
 
 Questions can also be managed directly within a quiz.
 
@@ -510,6 +514,8 @@ Then apply them:
 python manage.py migrate
 ```
 
+The local database file should not be committed to version control.
+
 ---
 
 ## Tests
@@ -522,26 +528,26 @@ python manage.py test
 
 The backend currently includes automated tests covering:
 
-- User registration
-- User login
-- Invalid login credentials
-- JWT authentication
-- Token refresh
-- Invalid refresh tokens
-- Missing refresh tokens
-- Logout
-- Refresh token blacklisting
-- Access token blacklisting
-- Quiz creation
-- Quiz retrieval
-- Quiz ownership
-- Quiz updates
-- Quiz deletion
-- Authentication requirements
-- YouTube URL validation
-- YouTube URL normalization
-- YouTube download errors
-- Gemini/API generation errors
+* User registration
+* User login
+* Invalid login credentials
+* JWT authentication
+* Token refresh
+* Invalid refresh tokens
+* Missing refresh tokens
+* Logout
+* Refresh token blacklisting
+* Access token blacklisting
+* Quiz creation
+* Quiz retrieval
+* Quiz ownership
+* Quiz updates
+* Quiz deletion
+* Authentication requirements
+* YouTube URL validation
+* YouTube URL normalization
+* YouTube download errors
+* Gemini/API generation errors
 
 The current test suite contains:
 
@@ -621,10 +627,16 @@ Create the virtual environment:
 py -3.11 -m venv .venv
 ```
 
-Activate it:
+Activate it on Windows:
 
 ```bash
 .venv\Scripts\activate
+```
+
+Activate it on Linux or macOS:
+
+```bash
+source .venv/bin/activate
 ```
 
 Install dependencies:
@@ -651,17 +663,17 @@ python manage.py runserver
 
 The backend includes several security measures:
 
-- Password hashing through Django
-- JWT-based authentication
-- HttpOnly cookies
-- Refresh token blacklisting
-- Access token blacklisting
-- Environment variables for secrets
-- User-based quiz ownership
-- Protected API endpoints
-- CORS configuration
-- Server-side URL validation
-- No API keys stored in source code
+* Password hashing through Django
+* JWT-based authentication
+* HttpOnly cookies
+* Refresh token blacklisting
+* Access token blacklisting
+* Environment variables for secrets
+* User-based quiz ownership
+* Protected API endpoints
+* CORS configuration
+* Server-side URL validation
+* No API keys stored in source code
 
 Sensitive values must always remain inside the local `.env` file.
 
@@ -669,23 +681,9 @@ Sensitive values must always remain inside the local `.env` file.
 
 ## Notes
 
-- FFmpeg must be installed globally.
-- Whisper runs locally.
-- Gemini requires an API key.
-- Quiz generation time depends on video length and hardware performance.
-- External services such as YouTube or Gemini may temporarily be unavailable.
-- Temporary audio files are automatically deleted.
-- The frontend is provided separately by the Developer Akademie.
-- This repository focuses on the backend implementation.
-
----
-
-## Frontend Credits
-
-The Quizly frontend was provided by the **Developer Akademie** for the Backend course.
-
-Frontend repository:
-
-[Developer Akademie – project.Quizly](https://github.com/Developer-Akademie-Backendkurs/project.Quizly)
-
-The frontend itself was not developed by me. My implementation covers the backend functionality and its integration with the provided frontend.
+* FFmpeg must be installed globally.
+* Whisper runs locally.
+* Gemini requires an API key.
+* Quiz generation time depends on video length and hardware performance.
+* External services such as YouTube or Gemini may temporarily be unavailable.
+* Temporary audio files are automatically deleted.
